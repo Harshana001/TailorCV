@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const parsedData = extractStructuredData(rawText)
+    const parsedData = await extractStructuredData(rawText)
 
     const resume = await prisma.resume.create({
       data: {

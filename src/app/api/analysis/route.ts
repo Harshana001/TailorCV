@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         weakAreas: analysis.weakAreas,
         atsScore: analysis.atsScore,
         recommendations: analysis.recommendations,
+        recruiterFeedback: analysis.recruiterFeedback,
         rawAnalysis: analysis.rawAnalysis,
       },
     })

@@ -78,16 +78,17 @@ model Resume {
 }
 
 model ResumeAnalysis {
-  id              String   @id @default(cuid())
-  userId          String
-  resumeId        String
-  jobTitle        String
-  missingSkills   Json
-  weakAreas       Json
-  atsScore        Int
-  recommendations Json
-  rawAnalysis     String   @db.Text
-  createdAt       DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  resumeId          String
+  jobTitle          String
+  missingSkills     Json
+  weakAreas         Json
+  atsScore          Int
+  recommendations   Json
+  recruiterFeedback String   @default("") @db.Text
+  rawAnalysis       String   @db.Text
+  createdAt         DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
