@@ -10,6 +10,7 @@ export interface AnalysisResult {
   weakAreas: string[]
   atsScore: number
   recommendations: string[]
+  recruiterFeedback: string
   rawAnalysis: string
 }
 
@@ -22,34 +23,38 @@ export async function analyzeCV(
   parsedCV: ParsedCV,
   jobTitle: string
 ): Promise<AnalysisResult> {
-  const prompt = `You are an expert resume analyst and career coach. Analyze the following CV against the job title "${jobTitle}".
+  const prompt = `You are an ATS resume expert and experienced recruiter. Analyse this resume against the target role.
 
-CV DATA:
+Target Role: ${jobTitle}
+
+Resume:
 Name: ${parsedCV.name ?? "Not provided"}
 Skills: ${parsedCV.skills.join(", ") || "None listed"}
-Experience: ${parsedCV.experience.map((e) => `${e.title} at ${e.company}`).join(", ") || "None listed"}
-Education: ${parsedCV.education.map((e) => `${e.degree} from ${e.institution}`).join(", ") || "None listed"}
+Experience: ${parsedCV.experience.map((e) => `${e.title} at ${e.company} (${e.duration})`).join("; ") || "None listed"}
+Education: ${parsedCV.education.map((e) => `${e.degree} from ${e.institution}`).join("; ") || "None listed"}
 Certifications: ${parsedCV.certifications.join(", ") || "None listed"}
+Summary: ${parsedCV.summary ?? "Not provided"}
 
-IMPORTANT RULES:
+CRITICAL RULES — NEVER VIOLATE:
 - Do NOT invent or suggest adding fake experience, certifications, or education
 - Only identify genuinely missing skills and weak areas based on actual CV content
 - If information is missing, state that it is missing — do not fabricate
 - Be honest about ATS score based solely on existing content
 
-Provide a JSON response with exactly this structure:
+Return ONLY a JSON object with exactly this structure:
 {
-  "missingSkills": ["skill1", "skill2", ...],
-  "weakAreas": ["area1", "area2", ...],
-  "atsScore": <number 0-100>,
-  "recommendations": ["recommendation1", "recommendation2", ...],
-  "summary": "brief overall assessment"
+  "atsScore": <integer 0-100>,
+  "missingSkills": ["skill1", "skill2"],
+  "weakAreas": ["area description 1", "area description 2"],
+  "recommendations": ["specific actionable suggestion 1", "suggestion 2"],
+  "recruiterFeedback": "2-3 sentence honest assessment a recruiter would give, based only on what is present"
 }
 
-missingSkills: Skills typically required for ${jobTitle} that are not present in the CV
-weakAreas: Sections of the CV that are thin, unclear, or underdeveloped
-atsScore: Estimated ATS compatibility score (0-100) based on keywords, formatting signals, and completeness
-recommendations: Specific, actionable improvements the candidate can make using only their real experience`
+atsScore: ATS compatibility score based on keyword match, completeness, and formatting signals
+missingSkills: Skills commonly required for ${jobTitle} that are absent from this CV
+weakAreas: CV sections that are thin, vague, or underdeveloped
+recommendations: Specific improvements using only the candidate's real existing experience
+recruiterFeedback: Honest recruiter perspective on this candidate's fit for the role`
 
   const message = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -68,6 +73,7 @@ recommendations: Specific, actionable improvements the candidate can make using 
       weakAreas: parsed.weakAreas ?? [],
       atsScore: parsed.atsScore ?? 0,
       recommendations: parsed.recommendations ?? [],
+      recruiterFeedback: parsed.recruiterFeedback ?? "",
       rawAnalysis: text,
     }
   } catch {
@@ -76,6 +82,7 @@ recommendations: Specific, actionable improvements the candidate can make using 
       weakAreas: [],
       atsScore: 0,
       recommendations: [],
+      recruiterFeedback: "",
       rawAnalysis: text,
     }
   }
