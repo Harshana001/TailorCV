@@ -12,6 +12,10 @@ import {
   Target,
   ListChecks,
   Info,
+  Check,
+  X,
+  FileDown,
+  Gauge,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +23,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import { RESUME_TEMPLATES, DEFAULT_TEMPLATE, type TemplateId } from "@/lib/resume-templates"
 
 interface JobDescriptionAnalysis {
   requiredSkills: string[]
@@ -110,6 +116,8 @@ export default function TailorClient() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<TailorResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [template, setTemplate] = useState<TemplateId>(DEFAULT_TEMPLATE)
+  const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null)
 
   const handleTailor = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -142,7 +150,60 @@ export default function TailorClient() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleExport = async (format: "pdf" | "docx") => {
+    if (!result?.generatedResumeId) return
+    setExporting(format)
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generatedResumeId: result.generatedResumeId, format, template }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? "Export failed")
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `resume_${template}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed")
+    } finally {
+      setExporting(null)
+    }
+  }
+
   const tailored = result?.tailored
+  const activeTemplate = RESUME_TEMPLATES[template]
+
+  // ATS keyword heatmap — compare job keywords against the tailored resume.
+  const jobKeywords = result
+    ? Array.from(
+        new Map(
+          [...result.jdAnalysis.requiredSkills, ...result.jdAnalysis.preferredSkills].map((k) => [
+            k.toLowerCase(),
+            k,
+          ])
+        ).values()
+      )
+    : []
+  const resumeHaystack = tailored
+    ? [...tailored.skills, ...tailored.matchedKeywords].map((s) => s.toLowerCase())
+    : []
+  const keywordHits = jobKeywords.map((kw) => ({
+    keyword: kw,
+    present: resumeHaystack.some((h) => h.includes(kw.toLowerCase()) || kw.toLowerCase().includes(h)),
+  }))
+  const matchedCount = keywordHits.filter((k) => k.present).length
+  const matchScore = jobKeywords.length
+    ? Math.round((matchedCount / jobKeywords.length) * 100)
+    : tailored?.atsScore ?? 0
   const scoreColor =
     (tailored?.atsScore ?? 0) >= 80 ? "text-emerald-600" :
     (tailored?.atsScore ?? 0) >= 60 ? "text-amber-600" :
@@ -325,6 +386,88 @@ export default function TailorClient() {
             </CardContent>
           </Card>
 
+          {/* Resume match score + ATS keyword heatmap */}
+          <div className="grid gap-6 md:grid-cols-[200px_1fr]">
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-6 text-center">
+                <Gauge className="mb-2 h-5 w-5 text-slate-400" />
+                <p
+                  className={cn(
+                    "text-4xl font-bold tabular-nums",
+                    matchScore >= 80 ? "text-emerald-600" : matchScore >= 60 ? "text-amber-600" : "text-red-600"
+                  )}
+                >
+                  {matchScore}%
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-600">Resume Match</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {matchedCount}/{jobKeywords.length} job keywords
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-3 text-sm font-semibold text-slate-900">
+                  ATS Keyword Heatmap
+                </p>
+                {keywordHits.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {keywordHits.map(({ keyword, present }) => (
+                      <span
+                        key={keyword}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-sm",
+                          present
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-red-50 text-red-600"
+                        )}
+                      >
+                        {present ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-slate-400">No job keywords detected to match against.</p>
+                )}
+                <p className="mt-3 text-xs text-slate-400">
+                  ✓ present in your resume · ✗ missing. Missing keywords are reported, never fabricated —
+                  add them only if they reflect your real experience.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Template selector */}
+          <Card>
+            <CardContent className="p-6">
+              <p className="mb-3 text-sm font-semibold text-slate-900">Template</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {Object.values(RESUME_TEMPLATES).map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => setTemplate(tpl.id)}
+                    aria-pressed={template === tpl.id}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-colors",
+                      template === tpl.id
+                        ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                        : "border-slate-200 hover:border-slate-300"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={cn("font-semibold", tpl.accentClass)}>{tpl.name}</span>
+                      {template === tpl.id && <Check className="h-4 w-4 text-blue-600" />}
+                    </div>
+                    <p className="mt-1 text-xs leading-snug text-slate-500">{tpl.description}</p>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Tailored resume header / actions */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -341,21 +484,54 @@ export default function TailorClient() {
                 {tailored.atsScore >= 80 ? "Excellent" : tailored.atsScore >= 60 ? "Good" : "Needs Work"}
               </Badge>
             </div>
-            <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
-              {copied ? (
-                <><CheckCheck className="h-4 w-4 text-emerald-500" /> Copied</>
-              ) : (
-                <><Copy className="h-4 w-4" /> Copy as text</>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
+                {copied ? (
+                  <><CheckCheck className="h-4 w-4 text-emerald-500" /> Copied</>
+                ) : (
+                  <><Copy className="h-4 w-4" /> Copy as text</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport("pdf")}
+                disabled={exporting !== null}
+                className="gap-1.5"
+              >
+                {exporting === "pdf" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport("docx")}
+                disabled={exporting !== null}
+                className="gap-1.5"
+              >
+                {exporting === "docx" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                DOCX
+              </Button>
+            </div>
           </div>
 
           {/* Structured resume preview */}
           <Card>
-            <CardContent className="resume-preview space-y-6 p-8">
+            <CardContent
+              className={cn("resume-preview space-y-6 p-8", activeTemplate.fontClass)}
+              style={{ "--accent": `#${activeTemplate.accentHex}` } as React.CSSProperties}
+            >
               {/* Header */}
-              <div className="border-b border-slate-200 pb-4 text-center">
-                <h3 className="text-2xl font-bold uppercase tracking-wide text-slate-900">
+              <div className={cn("border-b-2 pb-4 text-center", activeTemplate.borderClass)}>
+                <h3 className="text-2xl font-bold uppercase tracking-wide text-[color:var(--accent)]">
                   {tailored.name ?? "Name not provided"}
                 </h3>
                 {tailored.contact && (
@@ -365,7 +541,7 @@ export default function TailorClient() {
 
               {tailored.professionalSummary && (
                 <section>
-                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-blue-700">
+                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-[color:var(--accent)]">
                     Professional Summary
                   </h4>
                   <p className="text-sm leading-7 text-slate-700">{tailored.professionalSummary}</p>
@@ -374,7 +550,7 @@ export default function TailorClient() {
 
               {tailored.skills.length > 0 && (
                 <section>
-                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-blue-700">Skills</h4>
+                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-[color:var(--accent)]">Skills</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {tailored.skills.map((s) => (
                       <span
@@ -390,7 +566,7 @@ export default function TailorClient() {
 
               {tailored.experience.length > 0 && (
                 <section>
-                  <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-blue-700">
+                  <h4 className="mb-3 text-sm font-bold uppercase tracking-wide text-[color:var(--accent)]">
                     Experience
                   </h4>
                   <div className="space-y-4">
@@ -423,7 +599,7 @@ export default function TailorClient() {
 
               {tailored.education.length > 0 && (
                 <section>
-                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-blue-700">
+                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-[color:var(--accent)]">
                     Education
                   </h4>
                   <ul className="space-y-1">
@@ -442,7 +618,7 @@ export default function TailorClient() {
 
               {tailored.certifications.length > 0 && (
                 <section>
-                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-blue-700">
+                  <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-[color:var(--accent)]">
                     Certifications
                   </h4>
                   <ul className="space-y-1">
