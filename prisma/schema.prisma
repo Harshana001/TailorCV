@@ -66,6 +66,7 @@ model Resume {
   userId     String
   fileName   String
   fileType   String
+  fileUrl    String?
   rawText    String   @db.Text
   parsedData Json
   createdAt  DateTime @default(now())
