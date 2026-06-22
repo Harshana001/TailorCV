@@ -38,27 +38,21 @@ export default function CoverLetterClient() {
     setResult(null)
 
     try {
-      let jdId = jobDescriptionId
-
-      if (!jdId) {
-        const jdRes = await fetch("/api/generate-resume", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ resumeId, jobTitle, company, jobDescription, skipGenerate: true }),
-        })
-        const jdData = await jdRes.json()
-        if (!jdRes.ok) throw new Error(jdData.error ?? "Failed to save job description")
-        jdId = jdData.jobDescriptionId
-        setJobDescriptionId(jdId)
-      }
-
       const res = await fetch("/api/cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resumeId, jobDescriptionId: jdId, generatedResumeId: generatedResumeId || undefined }),
+        body: JSON.stringify({
+          resumeId,
+          jobDescriptionId: jobDescriptionId || undefined,
+          generatedResumeId: generatedResumeId || undefined,
+          jobTitle: jobDescriptionId ? undefined : jobTitle,
+          company: jobDescriptionId ? undefined : company,
+          jobDescription: jobDescriptionId ? undefined : jobDescription,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Generation failed")
+      if (data.jobDescriptionId) setJobDescriptionId(data.jobDescriptionId)
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
@@ -173,7 +167,12 @@ export default function CoverLetterClient() {
       {result && (
         <div className="space-y-4" aria-live="polite">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Your Cover Letter</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-slate-900">Your Cover Letter</h2>
+              <span className="text-xs text-slate-400 tabular-nums">
+                {result.content.trim().split(/\s+/).filter(Boolean).length} words
+              </span>
+            </div>
             <Button variant="outline" size="sm" onClick={handleCopy}>
               {copied ? (
                 <><CheckCheck className="h-4 w-4 text-emerald-500" /> Copied</>
