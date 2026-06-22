@@ -3,12 +3,22 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { analyzeJobDescription, tailorResume } from "@/lib/ai"
 import type { ParsedCV } from "@/lib/cv-parser"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { trackEvent } from "@/lib/analytics"
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { success } = await checkRateLimit(session.user.id)
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment and try again." },
+        { status: 429 }
+      )
     }
 
     const { resumeId, jobTitle, jobDescription, company } = await req.json()
@@ -60,6 +70,12 @@ export async function POST(req: NextRequest) {
         content: JSON.stringify(tailored),
         atsScore: tailored.atsScore,
       },
+    })
+
+    await trackEvent(session.user.id, "resume_tailored", {
+      generatedResumeId: generated.id,
+      jobTitle,
+      atsScore: tailored.atsScore,
     })
 
     return NextResponse.json({

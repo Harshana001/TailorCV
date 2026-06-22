@@ -3,12 +3,22 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { analyzeCV } from "@/lib/ai"
 import type { ParsedCV } from "@/lib/cv-parser"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { trackEvent } from "@/lib/analytics"
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { success } = await checkRateLimit(session.user.id)
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment and try again." },
+        { status: 429 }
+      )
     }
 
     const { resumeId, jobTitle } = await req.json()
@@ -44,6 +54,12 @@ export async function POST(req: NextRequest) {
         recruiterFeedback: analysis.recruiterFeedback,
         rawAnalysis: analysis.rawAnalysis,
       },
+    })
+
+    await trackEvent(session.user.id, "cv_analyzed", {
+      analysisId: saved.id,
+      jobTitle,
+      atsScore: analysis.atsScore,
     })
 
     return NextResponse.json({ analysisId: saved.id, ...analysis })
