@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { FileText, BarChart3, FileEdit, PlusCircle, Clock, Wand2 } from "lucide-react"
+import { FileText, BarChart3, FileEdit, PlusCircle, Clock, Wand2, Layers } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
   const stats = [
     { label: "CVs Uploaded", value: resumes.length, icon: FileText, href: "/upload" },
     { label: "Analyses Run", value: analyses.length, icon: BarChart3, href: "/analysis" },
-    { label: "Resumes Generated", value: generatedResumes.length, icon: FileEdit, href: "/builder" },
+    { label: "Resume Versions", value: generatedResumes.length, icon: Layers, href: "/versions" },
     { label: "Cover Letters", value: coverLetters.length, icon: FileText, href: "/cover-letter" },
   ]
 
