@@ -19,6 +19,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Tailored resume preview — keep sections intact when printing */
+.resume-preview {
+  font-variant-numeric: tabular-nums;
+}
+.resume-preview section {
+  break-inside: avoid;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

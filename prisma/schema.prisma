@@ -97,10 +97,13 @@ model ResumeAnalysis {
 model JobDescription {
   id        String   @id @default(cuid())
   userId    String
-  title     String
-  company   String?
-  content   String   @db.Text
-  createdAt DateTime @default(now())
+  title            String
+  company          String?
+  content          String   @db.Text
+  requiredSkills   Json?
+  preferredSkills  Json?
+  responsibilities Json?
+  createdAt        DateTime @default(now())
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   generatedResumes GeneratedResume[]
