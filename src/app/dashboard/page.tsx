@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { FileText, BarChart3, FileEdit, PlusCircle, Clock } from "lucide-react"
+import { FileText, BarChart3, FileEdit, PlusCircle, Clock, Wand2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -95,7 +95,18 @@ export default async function DashboardPage() {
       {latestResume && (
         <div className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-900">Quick actions</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Link href={`/tailor?resumeId=${latestResume.id}`}>
+              <Card className="cursor-pointer border-dashed transition-colors hover:border-blue-300 hover:bg-blue-50">
+                <CardContent className="flex items-center gap-4 p-6">
+                  <Wand2 className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <p className="font-medium text-slate-900">Tailor to a job</p>
+                    <p className="text-xs text-slate-500">Match CV to a job description</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
             <Link href={`/analysis?resumeId=${latestResume.id}`}>
               <Card className="cursor-pointer border-dashed transition-colors hover:border-blue-300 hover:bg-blue-50">
                 <CardContent className="flex items-center gap-4 p-6">
