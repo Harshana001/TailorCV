@@ -370,36 +370,39 @@ export async function generateCoverLetter(
   parsedCV: ParsedCV,
   jobDescription: string,
   jobTitle: string,
-  company: string
+  company: string,
+  optimizedResume?: string
 ): Promise<string> {
-  const prompt = `You are an expert cover letter writer. Write a compelling cover letter using ONLY the candidate's real experience.
+  const prompt = `You are a professional recruiter writing a personalised cover letter for a candidate.
 
-CRITICAL RULES — NEVER VIOLATE:
-- Do NOT invent employment history
-- Do NOT invent certifications or achievements
-- Do NOT invent education
-- Only use and reframe real information from the CV
-- If specific experience is missing, acknowledge what the candidate does offer instead
+REQUIREMENTS:
+- Formal, professional tone
+- ATS friendly (plain text, no tables or special characters)
+- Based ONLY on the candidate's real resume — match it to the job's requirements
+- 300-400 words in the body
+- Open with "Dear Hiring Manager," and close with "Regards," followed by the candidate's real name
+- Match the candidate's genuine strengths to the role's key requirements
 
-CANDIDATE'S CV:
-Name: ${parsedCV.name ?? "Candidate"}
+CRITICAL RULES — NEVER VIOLATE (for credibility and legal safety):
+- Do NOT invent employment history, certifications, education, or achievements
+- Only rewrite and optimise information that is actually in the resume
+- If the resume lacks something the job wants, do NOT fabricate it — focus on real strengths instead
+
+CANDIDATE'S RESUME (the only source of truth):
+Name: ${parsedCV.name ?? "the candidate"}
 Skills: ${parsedCV.skills.join(", ") || "None listed"}
-Experience: ${parsedCV.experience.map((e) => `${e.title} at ${e.company}`).join(", ") || "None listed"}
+Experience:
+${parsedCV.experience.map((e) => `- ${e.title} at ${e.company} (${e.duration})`).join("\n") || "None listed"}
 Education: ${parsedCV.education.map((e) => `${e.degree} from ${e.institution}`).join(", ") || "None listed"}
+Certifications: ${parsedCV.certifications.join(", ") || "None listed"}
 Summary: ${parsedCV.summary ?? "Not provided"}
-
+${optimizedResume ? `\nATS-OPTIMISED RESUME PREPARED FOR THIS ROLE (use as the primary basis):\n${optimizedResume.substring(0, 3000)}\n` : ""}
 JOB TITLE: ${jobTitle}
 COMPANY: ${company || "the company"}
 JOB DESCRIPTION:
-${jobDescription}
+${jobDescription.substring(0, 4000)}
 
-Write a professional, personalised cover letter (3-4 paragraphs) that:
-1. Opens with a strong hook connecting the candidate's background to the role
-2. Highlights 2-3 relevant experiences or skills from their actual CV
-3. Shows genuine interest in the company and role
-4. Closes with a clear call to action
-
-Use a professional but warm tone. Do not use generic filler phrases.`
+Write the complete cover letter now. Output ONLY the letter text (greeting, body of 300-400 words, sign-off with the candidate's real name). Do not add commentary, headers, or word counts.`
 
   const message = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",

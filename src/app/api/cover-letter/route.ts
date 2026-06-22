@@ -11,22 +11,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { resumeId, jobDescriptionId, generatedResumeId } = await req.json()
+    const { resumeId, jobDescriptionId, generatedResumeId, jobTitle, jobDescription, company } =
+      await req.json()
 
-    if (!resumeId || !jobDescriptionId) {
+    if (!resumeId) {
+      return NextResponse.json({ error: "resumeId is required" }, { status: 400 })
+    }
+
+    if (!jobDescriptionId && (!jobTitle || !jobDescription)) {
       return NextResponse.json(
-        { error: "resumeId and jobDescriptionId are required" },
+        { error: "Provide either a jobDescriptionId or a jobTitle and jobDescription" },
         { status: 400 }
       )
     }
 
-    const [resume, jobDesc] = await Promise.all([
-      prisma.resume.findFirst({ where: { id: resumeId, userId: session.user.id } }),
-      prisma.jobDescription.findFirst({ where: { id: jobDescriptionId, userId: session.user.id } }),
-    ])
+    const resume = await prisma.resume.findFirst({
+      where: { id: resumeId, userId: session.user.id },
+    })
 
-    if (!resume || !jobDesc) {
-      return NextResponse.json({ error: "Resume or job description not found" }, { status: 404 })
+    if (!resume) {
+      return NextResponse.json({ error: "Resume not found" }, { status: 404 })
+    }
+
+    // Use an existing job description, or create one from the supplied details.
+    let jobDesc
+    if (jobDescriptionId) {
+      jobDesc = await prisma.jobDescription.findFirst({
+        where: { id: jobDescriptionId, userId: session.user.id },
+      })
+      if (!jobDesc) {
+        return NextResponse.json({ error: "Job description not found" }, { status: 404 })
+      }
+    } else {
+      jobDesc = await prisma.jobDescription.create({
+        data: {
+          userId: session.user.id,
+          title: jobTitle,
+          company: company || null,
+          content: jobDescription,
+        },
+      })
+    }
+
+    // If a tailored/optimised resume was produced, use it as the primary basis.
+    let optimizedResume: string | undefined
+    if (generatedResumeId) {
+      const generated = await prisma.generatedResume.findFirst({
+        where: { id: generatedResumeId, userId: session.user.id },
+      })
+      optimizedResume = generated?.content ?? undefined
     }
 
     const parsedCV: ParsedCV = {
@@ -38,20 +71,21 @@ export async function POST(req: NextRequest) {
       parsedCV,
       jobDesc.content,
       jobDesc.title,
-      jobDesc.company ?? ""
+      jobDesc.company ?? "",
+      optimizedResume
     )
 
     const saved = await prisma.coverLetter.create({
       data: {
         userId: session.user.id,
         resumeId,
-        jobDescriptionId,
+        jobDescriptionId: jobDesc.id,
         generatedResumeId: generatedResumeId || null,
         content,
       },
     })
 
-    return NextResponse.json({ coverLetterId: saved.id, content })
+    return NextResponse.json({ coverLetterId: saved.id, jobDescriptionId: jobDesc.id, content })
   } catch (err) {
     console.error("Cover letter error:", err)
     return NextResponse.json(
